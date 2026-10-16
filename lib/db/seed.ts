@@ -70,7 +70,8 @@ async function seed() {
     role: 'owner',
   });
 
-  await createStripeProducts();
+  // DESACTIVADO TEMPORALMENTE PARA EVITAR ERRORES DE CONEXIÓN CON STRIPE
+  // await createStripeProducts();
 }
 
 seed()
