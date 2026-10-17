@@ -10,7 +10,7 @@ export default function HomePage() {
         <section className="py-24 lg:py-32 bg-white flex flex-col items-center text-center">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="inline-flex items-center rounded-full px-4 py-1.5 text-sm font-semibold text-blue-800 bg-blue-50 border border-blue-100 mb-8">
-              Vectia S.A.S. - Inteligencia Artificial Corporativa
+              Vectia IA - Inteligencia Artificial Corporativa
             </div>
             <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight sm:text-5xl md:text-6xl leading-tight">
               Automatiza tu gestión de <span className="text-blue-600">servicios públicos</span>
