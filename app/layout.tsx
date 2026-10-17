@@ -4,11 +4,10 @@ import { Manrope } from 'next/font/google';
 import { getUser, getTeamForUser } from '@/lib/db/queries';
 import { SWRConfig } from 'swr';
 
-export const metadata: Metadata = {
-  title: 'Next.js SaaS Starter',
-  description: 'Get started quickly with Next.js, Postgres, and Stripe.'
+export const metadata = {
+  title: 'Vectia IA | Automatización de Servicios Públicos',
+  description: 'Procesa, unifica y analiza tus facturas automáticamente con inteligencia artificial. Extensión de monitoreo IoT en tiempo real para infraestructuras B2B.',
 };
-
 export const viewport: Viewport = {
   maximumScale: 1
 };
