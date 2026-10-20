@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Users, Settings, Shield, Activity, Menu } from 'lucide-react';
+import { Users, Settings, Shield, Activity, Menu, LayoutDashboard, Upload, LineChart } from 'lucide-react';
 
 export default function DashboardLayout({
   children
@@ -14,19 +14,23 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+  // Hemos añadido "Subir facturas" y "Análisis"
   const navItems = [
-    { href: '/dashboard', icon: Users, label: 'Team' },
+    { href: '/dashboard', icon: LayoutDashboard, label: 'Resumen' },
+    { href: '/dashboard/upload', icon: Upload, label: 'Subir facturas' },
+    { href: '/dashboard/analytics', icon: LineChart, label: 'Análisis' },
+    { href: '/dashboard/team', icon: Users, label: 'Equipo' },
     { href: '/dashboard/general', icon: Settings, label: 'General' },
-    { href: '/dashboard/activity', icon: Activity, label: 'Activity' },
-    { href: '/dashboard/security', icon: Shield, label: 'Security' }
+    { href: '/dashboard/activity', icon: Activity, label: 'Actividad' },
+    { href: '/dashboard/security', icon: Shield, label: 'Seguridad' }
   ];
 
   return (
-    <div className="flex flex-col min-h-[calc(100dvh-68px)] max-w-7xl mx-auto w-full">
+    <div className="flex flex-col min-h-[calc(100dvh-68px)] w-full">
       {/* Mobile header */}
       <div className="lg:hidden flex items-center justify-between bg-white border-b border-gray-200 p-4">
         <div className="flex items-center">
-          <span className="font-medium">Settings</span>
+          <span className="font-medium">Ajustes</span>
         </div>
         <Button
           className="-mr-3"
@@ -34,7 +38,7 @@ export default function DashboardLayout({
           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
         >
           <Menu className="h-6 w-6" />
-          <span className="sr-only">Toggle sidebar</span>
+          <span className="sr-only">Alternar menú lateral</span>
         </Button>
       </div>
 
@@ -53,11 +57,11 @@ export default function DashboardLayout({
                 <Button
                   variant={pathname === item.href ? 'secondary' : 'ghost'}
                   className={`shadow-none my-1 w-full justify-start ${
-                    pathname === item.href ? 'bg-gray-100' : ''
+                    pathname === item.href ? 'bg-blue-50 text-blue-700 font-medium hover:bg-blue-100' : 'text-gray-600'
                   }`}
                   onClick={() => setIsSidebarOpen(false)}
                 >
-                  <item.icon className="h-4 w-4" />
+                  <item.icon className="h-4 w-4 mr-3" />
                   {item.label}
                 </Button>
               </Link>
