@@ -1,0 +1,120 @@
+.
+├── app
+│   ├── api
+│   │   ├── stripe
+│   │   │   ├── checkout
+│   │   │   │   └── route.ts
+│   │   │   └── webhook
+│   │   │       └── route.ts
+│   │   ├── team
+│   │   │   └── route.ts
+│   │   └── user
+│   │       └── route.ts
+│   ├── (dashboard)
+│   │   ├── dashboard
+│   │   │   ├── activity
+│   │   │   │   ├── loading.tsx
+│   │   │   │   └── page.tsx
+│   │   │   ├── analytics
+│   │   │   │   └── page.tsx
+│   │   │   ├── general
+│   │   │   │   └── page.tsx
+│   │   │   ├── layout.tsx
+│   │   │   ├── page.tsx
+│   │   │   ├── security
+│   │   │   │   └── page.tsx
+│   │   │   ├── team
+│   │   │   │   └── page.tsx
+│   │   │   └── upload
+│   │   │       └── page.tsx
+│   │   ├── layout.tsx
+│   │   ├── page.tsx
+│   │   └── terminal.tsx
+│   ├── favicon.ico
+│   ├── globals.css
+│   ├── layout.tsx
+│   ├── (login)
+│   │   ├── actions.ts
+│   │   ├── login.tsx
+│   │   ├── sign-in
+│   │   │   └── page.tsx
+│   │   └── sign-up
+│   │       └── page.tsx
+│   └── not-found.tsx
+├── components
+│   └── ui
+│       ├── avatar.tsx
+│       ├── button.tsx
+│       ├── card.tsx
+│       ├── dropdown-menu.tsx
+│       ├── input.tsx
+│       ├── label.tsx
+│       └── radio-group.tsx
+├── components.json
+├── drizzle.config.ts
+├── lib
+│   ├── auth
+│   │   ├── middleware.ts
+│   │   └── session.ts
+│   ├── db
+│   │   ├── drizzle.ts
+│   │   ├── migrations
+│   │   │   ├── 0000_soft_the_anarchist.sql
+│   │   │   └── meta
+│   │   │       ├── 0000_snapshot.json
+│   │   │       └── _journal.json
+│   │   ├── queries.ts
+│   │   ├── schema.ts
+│   │   ├── seed.ts
+│   │   └── setup.ts
+│   ├── payments
+│   │   ├── actions.ts
+│   │   └── stripe.ts
+│   └── utils.ts
+├── LICENSE
+├── middleware.ts
+├── next.config.ts
+├── next-env.d.ts
+├── node_modules
+│   ├── autoprefixer -> .pnpm/autoprefixer@10.4.21_postcss@8.5.3/node_modules/autoprefixer
+│   ├── bcryptjs -> .pnpm/bcryptjs@3.0.2/node_modules/bcryptjs
+│   ├── class-variance-authority -> .pnpm/class-variance-authority@0.7.1/node_modules/class-variance-authority
+│   ├── clsx -> .pnpm/clsx@2.1.1/node_modules/clsx
+│   ├── dotenv -> .pnpm/dotenv@16.5.0/node_modules/dotenv
+│   ├── drizzle-kit -> .pnpm/drizzle-kit@0.31.1/node_modules/drizzle-kit
+│   ├── drizzle-orm -> .pnpm/drizzle-orm@0.43.1_gel@2.1.0_postgres@3.4.5/node_modules/drizzle-orm
+│   ├── jose -> .pnpm/jose@6.0.11/node_modules/jose
+│   ├── lucide-react -> .pnpm/lucide-react@0.511.0_react@19.1.0/node_modules/lucide-react
+│   ├── next -> .pnpm/next@15.6.0-canary.59_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/next
+│   ├── postcss -> .pnpm/postcss@8.5.3/node_modules/postcss
+│   ├── postgres -> .pnpm/postgres@3.4.5/node_modules/postgres
+│   ├── radix-ui -> .pnpm/radix-ui@1.4.2_@types+react-dom@19.1.5_@types+react@19.1.4__@types+react@19.1.4_react-d_160e84174e422b1a3fe53cca6ade648b/node_modules/radix-ui
+│   ├── react -> .pnpm/react@19.1.0/node_modules/react
+│   ├── react-dom -> .pnpm/react-dom@19.1.0_react@19.1.0/node_modules/react-dom
+│   ├── recharts -> .pnpm/recharts@3.10.1_@types+react@19.1.4_react-dom@19.1.0_react@19.1.0__react-is@19.3.1_react@19.1.0_redux@5.0.1/node_modules/recharts
+│   ├── server-only -> .pnpm/server-only@0.0.1/node_modules/server-only
+│   ├── stripe -> .pnpm/stripe@18.1.0_@types+node@22.15.18/node_modules/stripe
+│   ├── @supabase
+│   │   ├── ssr -> ../.pnpm/@supabase+ssr@0.12.7_@supabase+supabase-js@2.118.0/node_modules/@supabase/ssr
+│   │   └── supabase-js -> ../.pnpm/@supabase+supabase-js@2.118.0/node_modules/@supabase/supabase-js
+│   ├── swr -> .pnpm/swr@2.3.3_react@19.1.0/node_modules/swr
+│   ├── @tailwindcss
+│   │   └── postcss -> ../.pnpm/@tailwindcss+postcss@4.1.7/node_modules/@tailwindcss/postcss
+│   ├── tailwindcss -> .pnpm/tailwindcss@4.1.7/node_modules/tailwindcss
+│   ├── tailwind-merge -> .pnpm/tailwind-merge@3.3.0/node_modules/tailwind-merge
+│   ├── tw-animate-css -> .pnpm/tw-animate-css@1.3.0/node_modules/tw-animate-css
+│   ├── @types
+│   │   ├── node -> ../.pnpm/@types+node@22.15.18/node_modules/@types/node
+│   │   ├── react -> ../.pnpm/@types+react@19.1.4/node_modules/@types/react
+│   │   └── react-dom -> ../.pnpm/@types+react-dom@19.1.5_@types+react@19.1.4/node_modules/@types/react-dom
+│   ├── typescript -> .pnpm/typescript@5.8.3/node_modules/typescript
+│   └── zod -> .pnpm/zod@3.24.4/node_modules/zod
+├── package.json
+├── pnpm-lock.yaml
+├── pnpm-workspace.yaml
+├── postcss.config.mjs
+├── README.md
+├── repo.txt
+└── tsconfig.json
+
+61 directories, 57 files
