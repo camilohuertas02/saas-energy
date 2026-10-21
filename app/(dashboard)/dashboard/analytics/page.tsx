@@ -256,8 +256,11 @@ export default function AnalyticsPage() {
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#6b7280'}} />
                   <YAxis axisLine={false} tickLine={false} tick={{fill: '#6b7280'}} tickFormatter={(val) => viewMode === 'gasto' ? `$${val/1000}k` : val} />
                   <RechartsTooltip 
-                    cursor={{fill: '#f3f4f6'}}
-                    formatter={(value: number) => [viewMode === 'gasto' ? `$${value.toLocaleString('es-CO')}` : value.toLocaleString('es-CO'), '']}
+  cursor={{fill: '#f3f4f6'}}
+  formatter={(value: any) => {
+    const val = Number(value) || 0;
+    return [viewMode === 'gasto' ? `$${val.toLocaleString('es-CO')}` : val.toLocaleString('es-CO'), ''];
+  }}
                   />
                   <Legend iconType="circle" />
                   <Bar name="Energía" dataKey={viewMode === 'gasto' ? "energia_gasto" : "energia_consumo"} fill="#f59e0b" radius={[4, 4, 0, 0]} />
