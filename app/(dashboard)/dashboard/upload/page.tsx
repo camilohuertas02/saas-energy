@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { createClient } from '@supabase/supabase-js';
+
+import { createBrowserClient } from '@supabase/ssr';
 import useSWR from 'swr';
 import { User } from '@/lib/db/schema';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,8 +12,7 @@ import { UploadCloud, FileText, Upload, Trash2, Loader2 } from 'lucide-react';
 // INICIALIZACIÓN DE SUPABASE
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'TU_SUPABASE_URL';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'TU_SUPABASE_ANON_KEY';
-const supabase = createClient(supabaseUrl, supabaseKey);
-
+const supabase = createBrowserClient(supabaseUrl, supabaseKey);
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 interface VectiaFile {
