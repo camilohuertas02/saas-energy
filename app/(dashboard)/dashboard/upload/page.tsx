@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { createClient } from '@supabase/supabase-js';
+
+import { createBrowserClient } from '@supabase/ssr';
 import useSWR from 'swr';
 import { User } from '@/lib/db/schema';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,8 +12,7 @@ import { UploadCloud, FileText, Upload, Trash2, Loader2 } from 'lucide-react';
 // INICIALIZACIÓN DE SUPABASE
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'TU_SUPABASE_URL';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'TU_SUPABASE_ANON_KEY';
-const supabase = createClient(supabaseUrl, supabaseKey);
-
+const supabase = createBrowserClient(supabaseUrl, supabaseKey);
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 interface VectiaFile {
@@ -24,7 +24,7 @@ interface VectiaFile {
   url?: string;  
   filePath?: string; 
   extractedData?: any; 
-  dbFacturaId?: number; // NUEVO: Para guardar el ID de la BD y poder borrarlo
+  dbFacturaId?: number; 
 }
 
 export default function UploadPage() {
@@ -103,8 +103,12 @@ export default function UploadPage() {
     const fileToProcess = files.find(f => f.id === fileId);
     if (!fileToProcess || !fileToProcess.fileObj) return;
 
-    if (!user || !user.id) {
-      console.error("No hay usuario logueado o no se pudo obtener el ID");
+    // 1. SEGURIDAD: Obtenemos el token JWT directamente de la sesión de Supabase
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+
+    if (!token) {
+      console.error("No hay sesión activa o token válido");
       alert("Por favor, inicia sesión para procesar la factura.");
       setFiles(prev => prev.map(f => f.id === fileId ? { ...f, status: 'Error' } : f));
       return;
@@ -114,22 +118,25 @@ export default function UploadPage() {
 
     const formData = new FormData();
     formData.append('archivo', fileToProcess.fileObj);
-    formData.append('id_usuario', user.id.toString());
+    // IMPORTANTE: Ya NO enviamos 'id_usuario' aquí. El backend lo deducirá del token.
 
     try {
       const response = await fetch('https://saas-energy-backend.onrender.com/api/procesar-factura', {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}` // 2. Enviamos el token de forma segura
+        },
         body: formData,
       });
 
-      // 1. Si la respuesta no es OK (ej. error 500 de Render), leemos el detalle
+      // Si la respuesta no es OK (ej. error 500 de Render o error de autenticación 401)
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
         const errorMessage = errorData?.detail || `Error HTTP: ${response.status}`;
         throw new Error(errorMessage);
       }
 
-      // 2. Si todo salió bien, extraemos los datos
+      // Si todo salió bien, extraemos los datos
       const data = await response.json(); 
       
       setFiles(prev => prev.map(f => 
@@ -144,17 +151,11 @@ export default function UploadPage() {
       console.log("¡Factura procesada y guardada exitosamente!", data);
 
     } catch (error: any) {
-      // 3. Mostramos el error real en la consola y en una alerta
       console.error("Detalle del error del backend:", error.message);
       alert(`Fallo al procesar: ${error.message}`);
       
       setFiles(prev => prev.map(f => f.id === fileId ? { ...f, status: 'Error' } : f));
     }
-
-
-
-
-
   };
 
   const handleRemove = async (fileId: string) => {
