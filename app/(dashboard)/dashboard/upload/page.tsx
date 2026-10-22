@@ -11,7 +11,6 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createBrowserClient(supabaseUrl, supabaseKey);
 
-// Fetcher que apunta a nuestro Proxy interno
 const fetcherProxy = async (url: string) => {
   const res = await fetch(url);
   if (!res.ok) throw new Error('Error al cargar datos');
@@ -35,29 +34,56 @@ export default function UploadPage() {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 1. OBTENER HISTORIAL (Sobrevive al F5 para facturas ya procesadas)
   const { data: dbData, mutate } = useSWR('/api/proxy/analytics', fetcherProxy);
 
+  // ==========================================
+  // 1. RECUPERACIÓN DESPUÉS DEL F5 (URLs Firmadas y Seguras)
+  // ==========================================
   useEffect(() => {
-    if (dbData?.data) {
+    const loadHistory = async () => {
+      if (!dbData?.data) return;
+
+      // Extraemos las rutas que guardamos en el JSONB
+      const rutasEnBucket = dbData.data
+        .map((f: any) => (f.detalles_adicionales || {}).ruta_pdf)
+        .filter(Boolean);
+
+      // Generamos URLs firmadas masivas para mantener la seguridad de los PDFs
+      let signedUrlsMap: Record<string, string> = {};
+      if (rutasEnBucket.length > 0) {
+        const { data: urlsData } = await supabase.storage.from('facturas_vectia').createSignedUrls(rutasEnBucket, 60 * 60 * 24);
+        if (urlsData) {
+          urlsData.forEach((u: any) => {
+            if (u.path && u.signedUrl) signedUrlsMap[u.path] = u.signedUrl;
+          });
+        }
+      }
+
       const loadedFiles: VectiaFile[] = dbData.data.map((f: any) => {
          const fechaStr = f.created_at ? new Date(f.created_at).toLocaleDateString('es-CO') : 'Desconocida';
+         const rutaPdf = (f.detalles_adicionales || {}).ruta_pdf;
+         
+         const displayName = rutaPdf || `Factura_${f.proveedor?.replace(/\s/g, '') || 'Servicio'}_${f.numero_factura || f.id}.pdf`;
+         const secureUrl = rutaPdf ? signedUrlsMap[rutaPdf] : undefined;
+
          return {
            id: `db-${f.id}`, 
            date: fechaStr,
-           // Mostramos un nombre representativo del historial
-           name: `Factura_${f.proveedor?.replace(/\s/g, '') || 'Servicio'}_${f.numero_factura || f.id}.pdf`,
+           name: displayName, // Nombre hermoso
            status: 'Datos extraidos',
+           url: secureUrl, // Hipervínculo azul funcional
+           filePath: rutaPdf,
            dbFacturaId: f.id,
          };
       });
 
       setFiles(prev => {
-        // Mantenemos en pantalla los archivos que apenas se arrastraron
         const activeUploads = prev.filter(p => p.status !== 'Datos extraidos');
         return [...loadedFiles, ...activeUploads];
       });
-    }
+    };
+
+    loadHistory();
   }, [dbData]);
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -81,36 +107,40 @@ export default function UploadPage() {
     }
   };
 
-  // 2. STAGING & RENOMBRAMIENTO INTELIGENTE (No toca el bucket todavía)
+  // ==========================================
+  // 2. STAGING ANTES DEL F5 (Blob temporal en memoria)
+  // ==========================================
   const processSelectedFiles = async (newFiles: File[]) => {
     for (const file of newFiles) {
       const newId = crypto.randomUUID();
-      
-      // Añadir marca de tiempo: YYYYMMDD_HHMM para evitar duplicados
       const now = new Date();
       const timestamp = `${now.getFullYear()}${(now.getMonth()+1).toString().padStart(2,'0')}${now.getDate().toString().padStart(2,'0')}_${now.getHours().toString().padStart(2,'0')}${now.getMinutes().toString().padStart(2,'0')}`;
       
       const fileExt = file.name.split('.').pop();
-      const baseName = file.name.substring(0, file.name.lastIndexOf('.'));
-      const safeBaseName = baseName.replace(/[^a-zA-Z0-9-]/g, '_'); 
-      const newFileName = `${safeBaseName}_${timestamp}.${fileExt}`;
+      const baseName = file.name.substring(0, file.name.lastIndexOf('.')).replace(/[^a-zA-Z0-9-]/g, '_'); 
+      const tempFileName = `temp_${baseName}_${timestamp}.${fileExt}`;
 
-      // Reconstruimos el objeto File con el nuevo nombre seguro
-      const modifiedFile = new File([file], newFileName, { type: file.type });
+      const modifiedFile = new File([file], tempFileName, { type: file.type });
+      
+      // Magia: El enlace funciona antes de subir a la nube
+      const localPreviewUrl = URL.createObjectURL(modifiedFile);
 
       const newVectiaFile: VectiaFile = {
         id: newId,
         date: now.toLocaleDateString('es-CO'),
-        name: newFileName,
-        status: 'Listo para extraer', // Se queda en memoria local
+        name: file.name, // Mostramos el nombre original mientras espera
+        status: 'Listo para extraer', 
         fileObj: modifiedFile,
+        url: localPreviewUrl, 
       };
 
       setFiles(prev => [newVectiaFile, ...prev]);
     }
   };
 
-  // 3. PROCESAMIENTO TOTAL (Sube al bucket + Extrae datos)
+  // ==========================================
+  // 3. EXTRACCIÓN Y RENOMBRAMIENTO INTELIGENTE
+  // ==========================================
   const handleProcessInRender = async (fileId: string) => {
     const fileToProcess = files.find(f => f.id === fileId);
     if (!fileToProcess || !fileToProcess.fileObj) return;
@@ -118,40 +148,50 @@ export default function UploadPage() {
     setFiles(prev => prev.map(f => f.id === fileId ? { ...f, status: 'Subiendo y Procesando...' } : f));
 
     try {
-      // a) Ahora sí subimos al bucket de Supabase con su nombre único
-      const filePath = fileToProcess.name;
-      const { error: uploadError } = await supabase.storage.from('facturas_vectia').upload(filePath, fileToProcess.fileObj);
+      // a) Subimos con el nombre temporal
+      const tempFilePath = fileToProcess.fileObj.name;
+      const { error: uploadError } = await supabase.storage.from('facturas_vectia').upload(tempFilePath, fileToProcess.fileObj);
       if (uploadError) throw uploadError;
 
-      const { data: urlData } = await supabase.storage.from('facturas_vectia').createSignedUrl(filePath, 60 * 60 * 24);
-
-      // b) Enviamos al servidor proxy para la extracción de IA
+      // b) Extraemos los datos con IA
       const formData = new FormData();
       formData.append('archivo', fileToProcess.fileObj);
-
-      const response = await fetch('/api/proxy/upload', {
-        method: 'POST',
-        body: formData,
-      });
+      const response = await fetch('/api/proxy/upload', { method: 'POST', body: formData });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
         throw new Error(errorData?.detail || `Error HTTP: ${response.status}`);
       }
-
       const data = await response.json(); 
-      
-      // c) Actualizamos la UI al éxito total
+
+      // c) Construimos el Nombre Hermoso
+      const proveedorLimpio = (data.proveedor || 'Servicio').replace(/[^a-zA-Z0-9]/g, '');
+      const numFacturaLimpio = (data.numero_factura || data.id_factura).replace(/[^a-zA-Z0-9-]/g, '');
+      const nombreHermoso = `Factura_${proveedorLimpio}_${numFacturaLimpio}.pdf`;
+
+      // d) Renombramos el archivo directamente en Supabase Storage
+      const { error: moveError } = await supabase.storage.from('facturas_vectia').move(tempFilePath, nombreHermoso);
+      const rutaFinal = moveError ? tempFilePath : nombreHermoso;
+
+      // e) Actualizamos la BD inyectando la ruta en el JSONB vacío
+      const detallesActuales = data.detalles_adicionales || {};
+      await supabase.from('facturas').update({
+        detalles_adicionales: { ...detallesActuales, ruta_pdf: rutaFinal }
+      }).eq('id', data.id_factura);
+
+      // Creamos la URL para que funcione sin dar F5
+      const { data: urlData } = await supabase.storage.from('facturas_vectia').createSignedUrl(rutaFinal, 60 * 60 * 24);
+
       setFiles(prev => prev.map(f => f.id === fileId ? { 
         ...f, 
         status: 'Datos extraidos', 
-        url: urlData?.signedUrl, 
-        filePath: filePath,
+        name: rutaFinal, // Cambia la UI al nombre bonito
+        url: urlData?.signedUrl || f.url, 
+        filePath: rutaFinal,
         extractedData: data, 
         dbFacturaId: data.id_factura 
       } : f));
       
-      // Actualizamos el SWR para sincronizar el historial
       mutate();
 
     } catch (error: any) {
@@ -166,14 +206,15 @@ export default function UploadPage() {
     setFiles(prev => prev.filter(f => f.id !== fileId));
 
     if (fileToDelete) {
-      // Borra de la DB
+      if (fileToDelete.url && fileToDelete.url.startsWith('blob:')) {
+        URL.revokeObjectURL(fileToDelete.url);
+      }
       if (fileToDelete.dbFacturaId) {
         try {
           await supabase.from('facturas').delete().eq('id', fileToDelete.dbFacturaId);
           mutate(); 
         } catch (err) {}
       }
-      // Borra del Bucket (solo si llegó a subirse)
       if (fileToDelete.filePath) {
         try {
           await supabase.storage.from('facturas_vectia').remove([fileToDelete.filePath]);
@@ -213,7 +254,13 @@ export default function UploadPage() {
                     <td className="px-4 py-4 font-medium text-gray-900">
                       <div className="flex items-center gap-2">
                         <FileText className="h-4 w-4 text-blue-500 flex-shrink-0" />
-                        {file.url ? <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate max-w-[200px] sm:max-w-xs">{file.name}</a> : <span className="truncate max-w-[200px] sm:max-w-xs">{file.name}</span>}
+                        {file.url ? (
+                           <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 transition-colors truncate max-w-[200px] sm:max-w-xs font-semibold" title="Ver documento PDF">
+                             {file.name}
+                           </a>
+                        ) : (
+                           <span className="truncate max-w-[200px] sm:max-w-xs text-gray-700">{file.name}</span>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-4">

@@ -4,7 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Users, Settings, Shield, Activity, Menu, LayoutDashboard, Upload, LineChart } from 'lucide-react';
+// Solo importamos los iconos que realmente vamos a usar
+import { Menu, Upload, LineChart, Activity } from 'lucide-react';
 
 export default function DashboardLayout({
   children
@@ -14,15 +15,11 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // Hemos añadido "Subir facturas" y "Análisis"
+  // Orden estricto corporativo: Análisis, Subir facturas, Tiempo real
   const navItems = [
-    { href: '/dashboard', icon: LayoutDashboard, label: 'Resumen' },
-    { href: '/dashboard/upload', icon: Upload, label: 'Subir facturas' },
     { href: '/dashboard/analytics', icon: LineChart, label: 'Análisis' },
-    { href: '/dashboard/team', icon: Users, label: 'Equipo' },
-    { href: '/dashboard/general', icon: Settings, label: 'General' },
-    { href: '/dashboard/activity', icon: Activity, label: 'Actividad' },
-    { href: '/dashboard/security', icon: Shield, label: 'Seguridad' }
+    { href: '/dashboard/upload', icon: Upload, label: 'Subir facturas' },
+    { href: '/dashboard/realtime', icon: Activity, label: 'Tiempo real' }
   ];
 
   return (
@@ -30,7 +27,7 @@ export default function DashboardLayout({
       {/* Mobile header */}
       <div className="lg:hidden flex items-center justify-between bg-white border-b border-gray-200 p-4">
         <div className="flex items-center">
-          <span className="font-medium">Ajustes</span>
+          <span className="font-medium">Vectia Dashboard</span>
         </div>
         <Button
           className="-mr-3"
