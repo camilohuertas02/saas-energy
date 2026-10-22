@@ -1,10 +1,9 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  experimental: {
-    ppr: true,
-    clientSegmentCache: true
-  }
+  // Lo movemos fuera del bloque 'experimental'
+  cacheComponents: true,
+  partialPrefetching: true
 };
 
 export default nextConfig;
