@@ -112,7 +112,7 @@ export default function AnalyticsPage() {
     const datosMensuales: Record<string, any> = {};
     const sedesFinanciero: Record<string, number> = {}; 
     const sedesAgua: Record<string, number> = {}; 
-    const sedesEmisiones: Record<string, number> = {}; // NUEVO: Para el ranking ESG
+    const sedesEmisiones: Record<string, number> = {};
 
     let alertaReactiva = false;
     let alertaSolidaridad = false;
@@ -164,7 +164,6 @@ export default function AnalyticsPage() {
         co2Factura = (consumoTarget * 2.02) / 1000;
       }
 
-      // Sumamos la emisión de esta factura a la sede correspondiente
       if (!sedesEmisiones[direccionCompleta]) sedesEmisiones[direccionCompleta] = 0;
       sedesEmisiones[direccionCompleta] += co2Factura;
 
@@ -207,7 +206,7 @@ export default function AnalyticsPage() {
       medidoresList: Array.from(todosLosMedidores),
       sedesData: sedesFinanciero, 
       alertas: { alertaReactiva, alertaSolidaridad, alertaFuga, mensajeFuga },
-      moduloESG: { huellaTotal, co2Energia, co2Gas, co2Agua, sedesEmisiones } // Agregamos sedesEmisiones al estado
+      moduloESG: { huellaTotal, co2Energia, co2Gas, co2Agua, sedesEmisiones }
     };
   }, [responseData?.data, filtroSede, filtroTiempo, filtroMedidor]);
 
@@ -269,7 +268,7 @@ export default function AnalyticsPage() {
 
       doc.setFontSize(20);
       doc.setTextColor(30, 58, 138); 
-      doc.text("Reporte Analítico - Vectia Enterprise", 14, 22);
+      doc.text("Reporte Analítico - Vectia", 14, 22);
 
       doc.setFontSize(10);
       doc.setTextColor(100);
@@ -301,7 +300,7 @@ export default function AnalyticsPage() {
           ['Sedes Analizadas', `${kpis.totalSedes}`]
         ],
         theme: 'grid',
-        headStyles: { fillColor: [30, 58, 138] }, 
+        headStyles: { fillColor: [30, 58, 138] as [number, number, number] }, 
       });
 
       let finalY = (doc as any).lastAutoTable.finalY + 15;
@@ -351,9 +350,9 @@ export default function AnalyticsPage() {
       setIsDownloading(true);
       const doc = new jsPDF();
 
-      const greenDark = [4, 120, 87]; 
-      const greenLight = [16, 185, 129]; 
-      const textDark = [17, 24, 39];
+      const greenDark: [number, number, number] = [4, 120, 87]; 
+      const greenLight: [number, number, number] = [16, 185, 129]; 
+      const textDark: [number, number, number] = [17, 24, 39];
 
       doc.setFontSize(20);
       doc.setTextColor(greenDark[0], greenDark[1], greenDark[2]);
@@ -416,7 +415,6 @@ export default function AnalyticsPage() {
       doc.setTextColor(textDark[0], textDark[1], textDark[2]);
       doc.text("Top Sedes (Por Magnitud de Emisiones)", 14, finalY);
 
-      // Usamos el nuevo objeto sedesEmisiones calculado en el useMemo
       const sedesArray = Object.entries(moduloESG.sedesEmisiones).sort((a, b) => b[1] - a[1]).slice(0, 5); 
       const bodySedes = sedesArray.map(([sede, emisiones], idx) => [
         `${idx + 1}`, sede, `${emisiones.toLocaleString('es-CO', {maximumFractionDigits: 2})} Ton CO2e`
@@ -432,7 +430,7 @@ export default function AnalyticsPage() {
 
       doc.setFontSize(8);
       doc.setTextColor(120);
-      const disclaimer = "METODOLOGIA Y FACTORES DE EMISION:\nCalculos alineados con los estandares internacionales del Protocolo de Gases de Efecto Invernadero (GHG Protocol).\n- Energia Electrica (Alcance 2): Factor de emision marginal del Sistema Interconectado Nacional (SIN) publicado oficialmente por la UPME (Unidad de Planeacion Minero Energetica de Colombia).\n- Gas Natural y Agua (Alcances 1 y 3): Calculos fundamentados en los promedios estandar provistos por la Agencia de Proteccion Ambiental (EPA) aplicados a los volumenes extraidos de la facturacion oficial del cliente.\n*Documento autogenerado para fines de auditoria y reporteria por Inteligencia Artificial Vectia.";
+      const disclaimer = "METODOLOGIA Y FACTORES DE EMISION:\nCalculos alineados con los estandares internacionales del Protocolo de Gases de Efecto Invernadero (GHG Protocol).\n- Energia Electrica (Alcance 2): Factor de emision marginal del Sistema Interconectado Nacional (SIN) publicado oficialmente por la UPME (Unidad de Planeacion Minero Energetica de Colombia).\n- Gas Natural y Agua (Alcances 1 y 3): Calculos fundamentados en los promedios estandar provistos por la Agencia de Proteccion Ambiental (EPA) aplicados a los volumenes extraidos de la facturacion oficial del cliente.\n*Documento autogenerado para fines de auditoria y reporteria por Vectia IA.";
       
       doc.text(disclaimer, 14, 255, { maxWidth: 180 });
 
