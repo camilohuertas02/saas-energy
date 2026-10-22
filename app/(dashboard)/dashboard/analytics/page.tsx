@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { 
   BarChart3, Download, MapPin, TrendingUp, Zap, AlertTriangle, 
-  FileX2, Droplets, Flame, Leaf, Scale 
+  FileX2, Droplets, Flame, Leaf, Scale, CheckCircle, ShieldCheck
 } from 'lucide-react';
 import { 
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, 
@@ -15,7 +15,6 @@ import {
 
 import { APIProvider, Map, AdvancedMarker, InfoWindow } from '@vis.gl/react-google-maps';
 
-// LIBRERÍAS DE GENERACIÓN PDF EN FRONTEND
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -35,14 +34,19 @@ const formatCompactNumber = (number: number) => {
   }).format(number);
 };
 
+const formatCurrency = (number: number) => {
+  return new Intl.NumberFormat('es-CO', {
+    style: 'currency',
+    currency: 'COP',
+    maximumFractionDigits: 0,
+  }).format(number);
+};
+
 const MARKER_COLORS = ['bg-blue-700', 'bg-emerald-600', 'bg-violet-600', 'bg-amber-500', 'bg-rose-600', 'bg-cyan-700'];
 
 export default function AnalyticsPage() {
   const [isDownloading, setIsDownloading] = useState(false);
   
-  // ==========================================
-  // ESTADOS DE FILTROS Y NAVEGACIÓN
-  // ==========================================
   const [filtroTiempo, setFiltroTiempo] = useState<string>('historico');
   const [filtroSede, setFiltroSede] = useState<string>('todas');
   const [filtroMedidor, setFiltroMedidor] = useState<string>('todos'); 
@@ -61,14 +65,11 @@ export default function AnalyticsPage() {
   }, [filtroSede]);
 
   // ==========================================
-  // MOTOR DE CÁLCULO Y FILTRADO (Con Resolución de Entidades)
+  // MOTOR DE CÁLCULO FINANCIERO Y OPERATIVO
   // ==========================================
-  const { kpis, chartData, sedesList, medidoresList, sedesData, alertas, moduloESG, hasData } = useMemo(() => {
+  const { kpis, chartData, sedesList, medidoresList, sedesData, rankingSedes, alertas, moduloESG, hasData } = useMemo(() => {
     const facturasCrud = responseData?.data || [];
     
-    // ---------------------------------------------------------
-    // OPCIÓN 1: RESOLUCIÓN DE ENTIDADES POR NÚMERO DE CLIENTE
-    // ---------------------------------------------------------
     const cuentaToDireccion: Record<string, string> = {};
     facturasCrud.forEach((f: any) => {
       if (f.numero_cliente && !cuentaToDireccion[f.numero_cliente]) {
@@ -82,7 +83,6 @@ export default function AnalyticsPage() {
         }
         return f.ciudad ? `${f.direccion_sede || 'Sede'}, ${f.ciudad}` : (f.direccion_sede || 'Sede');
     };
-    // ---------------------------------------------------------
 
     const todasLasSedes = new Set<string>();
     const todosLosMedidores = new Set<string>();
@@ -124,18 +124,18 @@ export default function AnalyticsPage() {
     });
 
     let gastoTotal = 0;
+    let gastoCoreTotal = 0;
+    let gastoTercerosTotal = 0;
     let energiaConsumo = 0, aguaConsumo = 0, gasConsumo = 0;
+    
+    let costoReactivaAcumulado = 0;
+    let costoSolidaridadAcumulado = 0;
     
     const sedesUnicas = new Set<string>();
     const datosMensuales: Record<string, any> = {};
     const sedesFinanciero: Record<string, number> = {}; 
-    const sedesAgua: Record<string, number> = {}; 
+    const sedesAguaDiario: Record<string, { totalConsumo: number, totalDias: number }> = {}; 
     const sedesEmisiones: Record<string, number> = {};
-
-    let alertaReactiva = false;
-    let alertaSolidaridad = false;
-    let alertaFuga = false;
-    let mensajeFuga = "";
 
     facturasFiltradas.forEach((factura: any) => {
       const direccionCompleta = getDireccionUnificada(factura);
@@ -155,9 +155,18 @@ export default function AnalyticsPage() {
       }
 
       const proporcionGasto = filtroMedidor === 'todos' ? 1 : (consumoTotalFactura > 0 ? (consumoTarget / consumoTotalFactura) : 0);
-      const gastoPonderado = (Number(factura.valor_total) || 0) * proporcionGasto;
+      
+      const core = Number(factura.costo_servicio_core) || 0;
+      const terceros = Number(factura.cargos_terceros) || 0;
+      const totalF = Number(factura.valor_total) || 0;
+      const diasFacturados = Number(factura.dias_facturados) || 30;
 
+      const gastoPonderado = totalF * proporcionGasto;
+      const corePonderado = core * proporcionGasto;
+      
       gastoTotal += gastoPonderado;
+      gastoCoreTotal += corePonderado;
+      gastoTercerosTotal += (terceros * proporcionGasto);
       
       if (!sedesFinanciero[direccionCompleta]) sedesFinanciero[direccionCompleta] = 0;
       sedesFinanciero[direccionCompleta] += gastoPonderado;
@@ -174,8 +183,10 @@ export default function AnalyticsPage() {
       if (servicio === 'agua') {
         aguaConsumo += consumoTarget;
         co2Factura = (consumoTarget * 0.3) / 1000;
-        if (!sedesAgua[direccionCompleta]) sedesAgua[direccionCompleta] = 0;
-        sedesAgua[direccionCompleta] += consumoTarget;
+        
+        if (!sedesAguaDiario[direccionCompleta]) sedesAguaDiario[direccionCompleta] = { totalConsumo: 0, totalDias: 0 };
+        sedesAguaDiario[direccionCompleta].totalConsumo += consumoTarget;
+        sedesAguaDiario[direccionCompleta].totalDias += diasFacturados;
       }
       if (servicio === 'gas') {
         gasConsumo += consumoTarget;
@@ -189,25 +200,31 @@ export default function AnalyticsPage() {
         datosMensuales[mes] = { name: mes, energia_gasto: 0, agua_gasto: 0, gas_gasto: 0, energia_consumo: 0, agua_consumo: 0, gas_consumo: 0 };
       }
 
-      datosMensuales[mes][`${servicio}_gasto`] += gastoPonderado;
+      datosMensuales[mes][`${servicio}_gasto`] += corePonderado;
       datosMensuales[mes][`${servicio}_consumo`] += consumoTarget;
 
       if (proporcionGasto > 0) {
         const detalles = factura.detalles_adicionales || {};
-        if (detalles.energia_reactiva || detalles.penalizacion) alertaReactiva = true;
-        if (detalles.contribucion_solidaridad || detalles.recargo_estrato) alertaSolidaridad = true;
+        costoReactivaAcumulado += (Number(detalles.costo_energia_reactiva_cop) || 0) * proporcionGasto;
+        costoSolidaridadAcumulado += (Number(detalles.costo_contribucion_solidaridad_cop) || 0) * proporcionGasto;
       }
     });
 
-    const consumosAguaArray = Object.entries(sedesAgua);
-    if (consumosAguaArray.length >= 2) {
-      consumosAguaArray.sort((a, b) => b[1] - a[1]); 
-      const [sedeMax, valorMax] = consumosAguaArray[0];
-      const [sedeMin, valorMin] = consumosAguaArray[consumosAguaArray.length - 1];
+    let alertaFuga = false;
+    let mensajeFuga = "";
+    
+    const consumosDiariosAgua = Object.entries(sedesAguaDiario)
+      .filter(([_, data]) => data.totalDias > 0)
+      .map(([sede, data]) => ({ sede, promedioDiario: data.totalConsumo / data.totalDias }));
+
+    if (consumosDiariosAgua.length >= 2) {
+      consumosDiariosAgua.sort((a, b) => b.promedioDiario - a.promedioDiario); 
+      const maxSede = consumosDiariosAgua[0];
+      const minSede = consumosDiariosAgua[consumosDiariosAgua.length - 1];
       
-      if (valorMin > 0 && (valorMax / valorMin) >= 3) {
+      if (minSede.promedioDiario > 0 && (maxSede.promedioDiario / minSede.promedioDiario) >= 3) {
         alertaFuga = true;
-        mensajeFuga = `Anomalia detectada: La sede '${sedeMax}' consume ${(valorMax/valorMin).toFixed(1)}x veces mas agua que la sede '${sedeMin}'.`;
+        mensajeFuga = `'${maxSede.sede}' consume ${(maxSede.promedioDiario/minSede.promedioDiario).toFixed(1)}x más agua diaria que '${minSede.sede}'.`;
       }
     }
 
@@ -216,14 +233,19 @@ export default function AnalyticsPage() {
     const co2Agua = (aguaConsumo * 0.3) / 1000;
     const huellaTotal = co2Energia + co2Gas + co2Agua;
 
+    const rankingSedes = Object.entries(sedesFinanciero)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+
     return {
       hasData: facturasCrud.length > 0,
-      kpis: { gastoTotal, energiaConsumo, aguaConsumo, gasConsumo, totalSedes: sedesUnicas.size },
+      kpis: { gastoTotal, gastoCoreTotal, gastoTercerosTotal, energiaConsumo, aguaConsumo, gasConsumo, totalSedes: sedesUnicas.size },
       chartData: Object.values(datosMensuales).sort((a: any, b: any) => a.name.localeCompare(b.name)),
       sedesList: Array.from(todasLasSedes), 
       medidoresList: Array.from(todosLosMedidores),
       sedesData: sedesFinanciero, 
-      alertas: { alertaReactiva, alertaSolidaridad, alertaFuga, mensajeFuga },
+      rankingSedes,
+      alertas: { costoReactivaAcumulado, costoSolidaridadAcumulado, alertaFuga, mensajeFuga },
       moduloESG: { huellaTotal, co2Energia, co2Gas, co2Agua, sedesEmisiones }
     };
   }, [responseData?.data, filtroSede, filtroTiempo, filtroMedidor]);
@@ -277,7 +299,7 @@ export default function AnalyticsPage() {
 
 
   // ==========================================
-  // PDF 1: REPORTE FINANCIERO Y OPERATIVO
+  // EXPORTACIÓN PDF
   // ==========================================
   const handleDownloadPDF = () => {
     try {
@@ -310,11 +332,11 @@ export default function AnalyticsPage() {
         startY: 70,
         head: [['Metrica', 'Valor Consolidado']],
         body: [
-          ['Gasto Total', `$${kpis.gastoTotal.toLocaleString('es-CO')} COP`],
+          ['Gasto Total Facturado', formatCurrency(kpis.gastoTotal)],
+          ['Costo Core (Neto Servicios)', formatCurrency(kpis.gastoCoreTotal)],
+          ['Cargos a Terceros (Aseo/Otros)', formatCurrency(kpis.gastoTercerosTotal)],
           ['Consumo Energia Electrica', `${kpis.energiaConsumo.toLocaleString('es-CO')} kWh`],
           ['Consumo Acueducto', `${kpis.aguaConsumo.toLocaleString('es-CO')} m3`],
-          ['Consumo Gas Natural', `${kpis.gasConsumo.toLocaleString('es-CO')} m3`],
-          ['Huella de Carbono (ESG)', `${moduloESG.huellaTotal.toLocaleString('es-CO', {maximumFractionDigits:2})} Ton CO2e`],
           ['Sedes Analizadas', `${kpis.totalSedes}`]
         ],
         theme: 'grid',
@@ -323,34 +345,43 @@ export default function AnalyticsPage() {
 
       let finalY = (doc as any).lastAutoTable.finalY + 15;
 
-      if (alertas.alertaReactiva || alertas.alertaFuga || alertas.alertaSolidaridad) {
-        doc.setFontSize(14);
-        doc.setTextColor(17, 24, 39);
-        doc.text("Alertas Inteligentes Detectadas", 14, finalY);
-        finalY += 8;
-        
-        doc.setFontSize(10);
-        doc.setTextColor(220, 38, 38); 
+      doc.setFontSize(14);
+      doc.setTextColor(17, 24, 39);
+      doc.text("Auditoria y Alertas Regulatorias", 14, finalY);
+      finalY += 8;
 
-        if (alertas.alertaReactiva) {
-          doc.text("- MULTA CREG 015: Se detectaron penalizaciones por Energia Reactiva.", 14, finalY);
-          finalY += 6;
-        }
-        if (alertas.alertaFuga) {
-          doc.text(`- FUGA DETECTADA: ${alertas.mensajeFuga}`, 14, finalY);
-          finalY += 6;
-        }
-        if (alertas.alertaSolidaridad) {
-          doc.text("- AUDITORIA LEGAL: Posibles cobros injustificados por Contribucion de Solidaridad.", 14, finalY);
-          finalY += 6;
-        }
+      const bodyAlertas = [];
+      if (alertas.costoReactivaAcumulado > 0) {
+        bodyAlertas.push(['MULTA CREG 015 (Energia Reactiva)', formatCurrency(alertas.costoReactivaAcumulado)]);
+      } else {
+        bodyAlertas.push(['Energia Reactiva', 'Sin multas (Optimo)']);
       }
+
+      if (alertas.costoSolidaridadAcumulado > 0) {
+        bodyAlertas.push(['Contribucion de Solidaridad', formatCurrency(alertas.costoSolidaridadAcumulado)]);
+      } else {
+        bodyAlertas.push(['Contribucion de Solidaridad', 'Sin cobros atipicos']);
+      }
+      
+      if (alertas.alertaFuga) {
+        bodyAlertas.push(['Fuga/Ineficiencia Hidrica', alertas.mensajeFuga]);
+      } else {
+        bodyAlertas.push(['Eficiencia Hidrica', 'Sin anomalias detectadas']);
+      }
+
+      autoTable(doc, {
+        startY: finalY,
+        head: [['Concepto / Alerta', 'Impacto Detectado']],
+        body: bodyAlertas,
+        theme: 'striped',
+        headStyles: { fillColor: [220, 38, 38] as [number, number, number] }, 
+      });
 
       doc.setFontSize(9);
       doc.setTextColor(150);
       doc.text("Generado de forma segura en el navegador por Vectia IA", 14, 285);
 
-      doc.save(`Vectia_Reporte_${new Date().toISOString().split('T')[0]}.pdf`);
+      doc.save(`Vectia_Auditoria_${new Date().toISOString().split('T')[0]}.pdf`);
 
     } catch (err) {
       console.error(err);
@@ -360,14 +391,10 @@ export default function AnalyticsPage() {
     }
   };
 
-  // ==========================================
-  // PDF 2: REPORTE ESG (SOSTENIBILIDAD Y HUELLA)
-  // ==========================================
   const handleDescargarESG = () => {
     try {
       setIsDownloading(true);
       const doc = new jsPDF();
-
       const greenDark: [number, number, number] = [4, 120, 87]; 
       const greenLight: [number, number, number] = [16, 185, 129]; 
       const textDark: [number, number, number] = [17, 24, 39];
@@ -387,8 +414,7 @@ export default function AnalyticsPage() {
       if(filtroTiempo === '1y') filtroTextoTiempo = "Ultimo año";
 
       doc.text(`Periodo analizado: ${filtroTextoTiempo}`, 14, 38);
-      doc.text(`Alcance geografico: ${filtroSede === 'todas' ? 'Nacional (Todas las sedes)' : filtroSede}`, 14, 44);
-
+      
       doc.setFontSize(14);
       doc.setTextColor(textDark[0], textDark[1], textDark[2]);
       doc.text("Resumen de Emisiones Globales", 14, 58);
@@ -410,25 +436,7 @@ export default function AnalyticsPage() {
       });
 
       let finalY = (doc as any).lastAutoTable.finalY + 15;
-
-      const arboles = Math.round(moduloESG.huellaTotal * 45);
-      const gasolina = Math.round(moduloESG.huellaTotal * 112);
-
-      doc.setFontSize(14);
-      doc.setTextColor(textDark[0], textDark[1], textDark[2]);
-      doc.text("Impacto Ambiental Equivalente", 14, finalY);
-      finalY += 8;
-
-      doc.setFontSize(11);
-      doc.setTextColor(80);
-      doc.text(`Las emisiones generadas durante este periodo equivalen aproximadamente a:`, 14, finalY);
-      finalY += 6;
-      doc.text(`- El consumo directo de ${gasolina.toLocaleString('es-CO')} galones de gasolina.`, 14, finalY);
-      finalY += 6;
-      doc.text(`- El CO2 absorbido por ${arboles.toLocaleString('es-CO')} arboles maduros durante todo un año.`, 14, finalY);
-      finalY += 15;
-
-      // Ranking Ambiental (Por Emisiones)
+      
       doc.setFontSize(14);
       doc.setTextColor(textDark[0], textDark[1], textDark[2]);
       doc.text("Top Sedes (Por Magnitud de Emisiones)", 14, finalY);
@@ -446,13 +454,7 @@ export default function AnalyticsPage() {
         headStyles: { fillColor: greenLight },
       });
 
-      doc.setFontSize(8);
-      doc.setTextColor(120);
-      const disclaimer = "METODOLOGIA Y FACTORES DE EMISION:\nCalculos alineados con los estandares internacionales del Protocolo de Gases de Efecto Invernadero (GHG Protocol).\n- Energia Electrica (Alcance 2): Factor de emision marginal del Sistema Interconectado Nacional (SIN) publicado oficialmente por la UPME (Unidad de Planeacion Minero Energetica de Colombia).\n- Gas Natural y Agua (Alcances 1 y 3): Calculos fundamentados en los promedios estandar provistos por la Agencia de Proteccion Ambiental (EPA) aplicados a los volumenes extraidos de la facturacion oficial del cliente.\n*Documento autogenerado para fines de auditoria y reporteria por Vectia IA.";
-      
-      doc.text(disclaimer, 14, 255, { maxWidth: 180 });
-
-      doc.save(`Vectia_Reporte_ESG_${new Date().toISOString().split('T')[0]}.pdf`);
+      doc.save(`Vectia_ESG_${new Date().toISOString().split('T')[0]}.pdf`);
 
     } catch (err) {
       console.error(err);
@@ -540,47 +542,19 @@ export default function AnalyticsPage() {
         </div>
       )}
 
-      {/* 2. SMART BANNERS */}
-      <div className="space-y-3 mb-8">
-        {alertas.alertaReactiva && (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3 shadow-sm animate-in fade-in">
-            <AlertTriangle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <h4 className="text-sm font-bold text-red-900">Alerta Crítica: Multa por Energía Reactiva (CREG 015)</h4>
-              <p className="text-sm text-red-700 mt-1">Se detectaron cobros por energía reactiva en el periodo seleccionado. <b>Acción sugerida:</b> Evaluar calibración de motores o instalación de banco de condensadores para detener esta fuga de capital.</p>
-            </div>
-          </div>
-        )}
-        {alertas.alertaFuga && (
-          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-3 shadow-sm animate-in fade-in">
-            <Droplets className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <h4 className="text-sm font-bold text-blue-900">Benchmarking Operativo: Posible Ineficiencia</h4>
-              <p className="text-sm text-blue-700 mt-1">{alertas.mensajeFuga}</p>
-            </div>
-          </div>
-        )}
-        {alertas.alertaSolidaridad && (
-          <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg flex items-start gap-3 shadow-sm animate-in fade-in">
-            <Scale className="h-5 w-5 text-purple-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <h4 className="text-sm font-bold text-purple-900">Auditoría Regulatoria: Cobros Injustificados</h4>
-              <p className="text-sm text-purple-700 mt-1">Identificamos cobros por "Contribución de Solidaridad" (20% de recargo) en sedes que, por su actividad, podrían estar exentas. Sugerimos revisión legal con la electrificadora.</p>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* 3. TARJETAS DE KPIs */}
+      {/* 2. TARJETAS DE KPIs (Se muestran arriba del todo para lectura inmediata) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <Card className="border-l-4 border-l-slate-800">
-          <CardContent className="p-6">
+          <CardContent className="p-5">
             <div className="flex justify-between items-center space-y-0 pb-2">
-              <p className="text-sm font-medium text-gray-500">Gasto Consolidado</p>
+              <p className="text-sm font-medium text-gray-500">Gasto Total Facturado</p>
               <TrendingUp className="h-4 w-4 text-slate-800" />
             </div>
             <div className="text-2xl font-bold text-gray-900">
-              ${isInitialLoading ? "..." : kpis.gastoTotal.toLocaleString('es-CO')} <span className="text-sm font-normal text-gray-500">COP</span>
+              {isInitialLoading ? "..." : formatCurrency(kpis.gastoTotal)}
+            </div>
+            <div className="text-xs text-gray-500 mt-1">
+              Servicios: {formatCurrency(kpis.gastoCoreTotal)} | Terceros: {formatCurrency(kpis.gastoTercerosTotal)}
             </div>
           </CardContent>
         </Card>
@@ -622,21 +596,20 @@ export default function AnalyticsPage() {
         </Card>
       </div>
 
-      {/* 4. NÚCLEO ANALÍTICO (Gráfica Compuesta y Mapa) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        
-        <Card className="lg:col-span-2 overflow-hidden relative flex flex-col">
+      {/* 3. NÚCLEO ANALÍTICO (Gráficas y Mapas) */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-10">
+        <Card className="xl:col-span-2 overflow-hidden relative flex flex-col">
           <CardHeader className="pb-2">
-            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
-                <CardTitle>Comportamiento de Consumo</CardTitle>
-                <CardDescription>Análisis aislado por tipo de suministro</CardDescription>
+                <CardTitle>Eficiencia Operativa</CardTitle>
+                <CardDescription>Costo neto del servicio (sin aseo/terceros) vs. Consumo Físico</CardDescription>
               </div>
               
               <div className="flex flex-wrap gap-3">
                 <div className="flex bg-gray-100 p-1 rounded-md">
                   <button onClick={() => setViewMode('gasto')} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${viewMode === 'gasto' ? 'bg-white shadow text-slate-800' : 'text-gray-500 hover:text-gray-900'}`}>
-                    Financiero (COP)
+                    Costo Neto (COP)
                   </button>
                   <button onClick={() => setViewMode('consumo')} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${viewMode === 'consumo' ? 'bg-white shadow text-slate-800' : 'text-gray-500 hover:text-gray-900'}`}>
                     Físico (Unidades)
@@ -706,120 +679,211 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
 
-        {/* MAPA AVANZADO */}
-        <Card className="relative overflow-hidden flex flex-col">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MapPin className="h-5 w-5 text-gray-500" /> Cobertura y Gasto
-            </CardTitle>
-            <CardDescription>Ubicación de sedes operativas</CardDescription>
-          </CardHeader>
-          <CardContent className="flex-1 flex flex-col">
-            <div className="bg-gray-100 w-full h-[250px] rounded-lg border border-gray-200 overflow-hidden relative flex flex-col items-center justify-center flex-shrink-0">
-              
-              {!hasFilteredData && !isInitialLoading ? (
-                 <div className="z-10 flex flex-col items-center justify-center text-center px-4 relative h-full w-full">
-                    <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
-                    <FileX2 className="h-10 w-10 text-gray-300 mb-2 z-10" />
-                    <p className="text-gray-500 text-sm font-medium z-10">Mapa inactivo</p>
-                 </div>
-              ) : Object.keys(geoCoords).length > 0 ? (
-                <APIProvider apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''}>
-                  <Map 
-                    mapId="VECTIA_DASHBOARD_MAP" 
-                    defaultCenter={defaultCenter} 
-                    defaultZoom={12} 
-                    gestureHandling={'greedy'}
-                    disableDefaultUI={true}
-                    zoomControl={true}
-                    style={{ width: "100%", height: "100%" }}
-                  >
-                    {Object.keys(sedesData).map((sede, idx) => {
-                      const coords = geoCoords[sede];
-                      if (!coords) return null; 
+        <div className="flex flex-col gap-6">
+          <Card className="relative overflow-hidden flex flex-col h-full min-h-[350px]">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <MapPin className="h-5 w-5 text-gray-500" /> Cobertura Geoespacial
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex-1 flex flex-col p-0 px-6 pb-6">
+              <div className="bg-gray-100 w-full h-[250px] rounded-lg border border-gray-200 overflow-hidden relative flex flex-col items-center justify-center flex-shrink-0">
+                {!hasFilteredData && !isInitialLoading ? (
+                   <div className="z-10 flex flex-col items-center justify-center text-center px-4 relative h-full w-full">
+                      <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+                      <FileX2 className="h-10 w-10 text-gray-300 mb-2 z-10" />
+                      <p className="text-gray-500 text-sm font-medium z-10">Mapa inactivo</p>
+                   </div>
+                ) : Object.keys(geoCoords).length > 0 ? (
+                  <APIProvider apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''}>
+                    <Map 
+                      mapId="VECTIA_DASHBOARD_MAP" 
+                      defaultCenter={defaultCenter} 
+                      defaultZoom={12} 
+                      gestureHandling={'greedy'}
+                      disableDefaultUI={true}
+                      zoomControl={true}
+                      style={{ width: "100%", height: "100%" }}
+                    >
+                      {Object.keys(sedesData).map((sede, idx) => {
+                        const coords = geoCoords[sede];
+                        if (!coords) return null; 
 
-                      const sedeIndex = sedesList.indexOf(sede);
-                      const colorClass = MARKER_COLORS[sedeIndex % MARKER_COLORS.length];
-                      const totalGastoSede = sedesData[sede];
+                        const sedeIndex = sedesList.indexOf(sede);
+                        const colorClass = MARKER_COLORS[sedeIndex % MARKER_COLORS.length];
+                        const totalGastoSede = sedesData[sede];
 
-                      return (
-                        <AdvancedMarker key={idx} position={{ lat: coords.lat, lng: coords.lon }} onClick={() => setActiveMarker(sede)}>
-                          <div className={`${colorClass} text-white font-bold text-xs px-3 py-1.5 rounded-full shadow-lg border-2 border-white flex items-center justify-center transform transition-transform hover:scale-110 cursor-pointer`}>
-                            ${formatCompactNumber(totalGastoSede)}
-                          </div>
-                        </AdvancedMarker>
-                      );
-                    })}
+                        return (
+                          <AdvancedMarker key={idx} position={{ lat: coords.lat, lng: coords.lon }} onClick={() => setActiveMarker(sede)}>
+                            <div className={`${colorClass} text-white font-bold text-xs px-3 py-1.5 rounded-full shadow-lg border-2 border-white flex items-center justify-center transform transition-transform hover:scale-110 cursor-pointer`}>
+                              ${formatCompactNumber(totalGastoSede)}
+                            </div>
+                          </AdvancedMarker>
+                        );
+                      })}
 
-                    {Object.keys(sedesData).map((sede, idx) => {
-                      const coords = geoCoords[sede];
-                      if (!coords) return null;
+                      {Object.keys(sedesData).map((sede, idx) => {
+                        const coords = geoCoords[sede];
+                        if (!coords) return null;
 
-                      return activeMarker === sede && (
-                        <InfoWindow key={`info-${idx}`} position={{ lat: coords.lat, lng: coords.lon }} onCloseClick={() => setActiveMarker(null)}>
-                          <div className="p-1 text-sm min-w-[120px]">
-                            <p className="font-bold border-b pb-1 mb-1 text-gray-900">{sede}</p>
-                            <p className="text-gray-600">Gasto Exacto: <br/><span className="font-medium text-gray-900">${sedesData[sede].toLocaleString('es-CO', {maximumFractionDigits: 0})}</span></p>
-                          </div>
-                        </InfoWindow>
-                      )
-                    })}
-                  </Map>
-                </APIProvider>
-              ) : (
-                <div className="z-10 flex flex-col items-center justify-center text-center px-4">
-                  <MapPin className="h-10 w-10 text-blue-500 mb-2 animate-bounce" />
-                  <p className="text-gray-500 text-sm font-medium">Renderizando mapa...</p>
-                </div>
-              )}
-            </div>
-            
-            <div className="mt-4 space-y-3 overflow-y-auto max-h-[150px] pr-2">
-              {isInitialLoading ? (
-                 <p className="text-sm text-gray-500 text-center">Analizando ubicaciones...</p>
-              ) : Object.keys(sedesData).length > 0 ? (
-                Object.keys(sedesData).map((sede: string, idx: number) => {
-                  const sedeIndex = sedesList.indexOf(sede);
-                  const colorClass = MARKER_COLORS[sedeIndex % MARKER_COLORS.length];
-                  
-                  return (
-                    <div key={idx} className="flex justify-between items-center text-sm border-b pb-2 last:border-0">
-                      <span className="font-medium text-gray-700 truncate pr-2 flex items-center gap-2" title={sede}>
-                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${colorClass}`}></div>
-                        <span className="truncate max-w-[150px] sm:max-w-[200px]">{sede}</span>
-                      </span>
-                      <span className="text-gray-500 font-medium">${formatCompactNumber(sedesData[sede])}</span>
-                    </div>
-                  );
-                })
-              ) : (
-                <p className="text-sm text-gray-400 text-center italic">Sin sedes en este periodo.</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                        return activeMarker === sede && (
+                          <InfoWindow key={`info-${idx}`} position={{ lat: coords.lat, lng: coords.lon }} onCloseClick={() => setActiveMarker(null)}>
+                            <div className="p-1 text-sm min-w-[120px]">
+                              <p className="font-bold border-b pb-1 mb-1 text-gray-900">{sede}</p>
+                              <p className="text-gray-600">Gasto Exacto: <br/><span className="font-medium text-gray-900">{formatCurrency(sedesData[sede])}</span></p>
+                            </div>
+                          </InfoWindow>
+                        )
+                      })}
+                    </Map>
+                  </APIProvider>
+                ) : (
+                  <div className="z-10 flex flex-col items-center justify-center text-center px-4">
+                    <MapPin className="h-10 w-10 text-blue-500 mb-2 animate-bounce" />
+                    <p className="text-gray-500 text-sm font-medium">Renderizando mapa...</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">Top 5 Sedes (Mayor Gasto)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="text-xs text-gray-500 uppercase bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-2 rounded-l-lg">Sede</th>
+                      <th className="px-4 py-2 rounded-r-lg text-right">Gasto COP</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {isInitialLoading ? (
+                      <tr><td colSpan={2} className="text-center py-4 text-gray-400">Calculando...</td></tr>
+                    ) : rankingSedes.length > 0 ? (
+                      rankingSedes.map(([sede, gasto], idx) => (
+                        <tr key={idx} className="border-b last:border-0 hover:bg-gray-50">
+                          <td className="px-4 py-3 font-medium text-gray-900 truncate max-w-[150px]" title={sede}>{sede}</td>
+                          <td className="px-4 py-3 text-right text-gray-600 font-semibold">{formatCurrency(gasto)}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr><td colSpan={2} className="text-center py-4 text-gray-400 italic">Sin datos registrados</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
-      {/* 5. MÓDULO ESG */}
-      <Card className="bg-emerald-50 border-emerald-200 mb-8">
-        <CardContent className="p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-6">
-          <div className="flex items-start gap-4">
-            <div className="h-12 w-12 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
-              <Leaf className="h-6 w-6 text-emerald-600" />
+      {/* 4. PANEL DE AUDITORÍA (Nuevo Grid 3 Columnas) */}
+      <div className="mb-6">
+        <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+          <ShieldCheck className="h-5 w-5 text-gray-600" /> Auditoría Regulatoria y Operativa
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          
+          {/* Card: Energía Reactiva */}
+          <Card className={`border-t-4 shadow-sm ${alertas.costoReactivaAcumulado > 0 ? 'border-t-red-500 bg-red-50/20' : 'border-t-emerald-500 bg-emerald-50/20'}`}>
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                {alertas.costoReactivaAcumulado > 0 ? (
+                  <AlertTriangle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                ) : (
+                  <ShieldCheck className="h-5 w-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                )}
+                <div>
+                  <h4 className={`text-sm font-bold ${alertas.costoReactivaAcumulado > 0 ? 'text-red-900' : 'text-emerald-900'}`}>
+                    {alertas.costoReactivaAcumulado > 0 ? 'Multa CREG 015 Detectada' : 'Óptimo: Cero Multas CREG 015'}
+                  </h4>
+                  <p className={`text-xs mt-1 leading-relaxed ${alertas.costoReactivaAcumulado > 0 ? 'text-red-700' : 'text-emerald-700'}`}>
+                    {alertas.costoReactivaAcumulado > 0 
+                      ? <>Estás perdiendo <b>{formatCurrency(alertas.costoReactivaAcumulado)}</b> por ineficiencias electromecánicas. Revisa tus bancos de condensadores.</>
+                      : 'Las sedes están operando con un factor de potencia normal. Sin fugas de capital.'}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Card: Fugas / Benchmarking */}
+          <Card className={`border-t-4 shadow-sm ${alertas.alertaFuga ? 'border-t-blue-500 bg-blue-50/20' : 'border-t-emerald-500 bg-emerald-50/20'}`}>
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                {alertas.alertaFuga ? (
+                  <Droplets className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                ) : (
+                  <CheckCircle className="h-5 w-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                )}
+                <div>
+                  <h4 className={`text-sm font-bold ${alertas.alertaFuga ? 'text-blue-900' : 'text-emerald-900'}`}>
+                    {alertas.alertaFuga ? 'Anomalía Hídrica Detectada' : 'Eficiencia Hídrica Normal'}
+                  </h4>
+                  <p className={`text-xs mt-1 leading-relaxed ${alertas.alertaFuga ? 'text-blue-700' : 'text-emerald-700'}`}>
+                    {alertas.alertaFuga 
+                      ? <>{alertas.mensajeFuga}</>
+                      : 'Al comparar el consumo diario normalizado, no se detectaron variaciones atípicas entre sedes.'}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Card: Contribución de Solidaridad */}
+          <Card className={`border-t-4 shadow-sm ${alertas.costoSolidaridadAcumulado > 0 ? 'border-t-purple-500 bg-purple-50/20' : 'border-t-emerald-500 bg-emerald-50/20'}`}>
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                {alertas.costoSolidaridadAcumulado > 0 ? (
+                  <Scale className="h-5 w-5 text-purple-600 flex-shrink-0 mt-0.5" />
+                ) : (
+                  <CheckCircle className="h-5 w-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                )}
+                <div>
+                  <h4 className={`text-sm font-bold ${alertas.costoSolidaridadAcumulado > 0 ? 'text-purple-900' : 'text-emerald-900'}`}>
+                    {alertas.costoSolidaridadAcumulado > 0 ? 'Cobro de Solidaridad' : 'Sin Cobros Atípicos'}
+                  </h4>
+                  <p className={`text-xs mt-1 leading-relaxed ${alertas.costoSolidaridadAcumulado > 0 ? 'text-purple-700' : 'text-emerald-700'}`}>
+                    {alertas.costoSolidaridadAcumulado > 0 
+                      ? <>Se identificó un recargo por <b>{formatCurrency(alertas.costoSolidaridadAcumulado)}</b>. Sugerimos revisar exenciones aplicables por actividad económica.</>
+                      : 'No se identificaron recargos por contribución de solidaridad en la facturación analizada.'}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+        </div>
+      </div>
+
+      {/* 5. MÓDULO ESG REDISEÑADO (Sleek Bar) */}
+      <Card className="bg-white border-emerald-200 shadow-sm mb-8">
+        <CardContent className="p-4 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-4 w-full">
+            <div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+              <Leaf className="h-5 w-5 text-emerald-600" />
             </div>
-            <div>
-              <h3 className="text-lg font-bold text-emerald-900">Módulo ESG: Sostenibilidad Corporativa</h3>
-              <p className="text-sm text-emerald-700 mt-1 max-w-2xl leading-relaxed">
-                De acuerdo con los factores de emisión oficiales, la operación en el periodo filtrado representa <b>{moduloESG.huellaTotal.toLocaleString('es-CO', {maximumFractionDigits:2})} Toneladas de CO2e</b> asociadas a consumos físicos (Energía: {moduloESG.co2Energia.toFixed(1)}t | Gas: {moduloESG.co2Gas.toFixed(1)}t | Agua Tratada: {moduloESG.co2Agua.toFixed(1)}t).
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-bold text-gray-900">Módulo ESG: Sostenibilidad Corporativa</h3>
+                <span className="bg-emerald-100 text-emerald-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">Activo</span>
+              </div>
+              <p className="text-sm text-gray-600 mt-0.5 line-clamp-2 md:line-clamp-none">
+                Huella consolidada: <b className="text-emerald-700">{moduloESG.huellaTotal.toLocaleString('es-CO', {maximumFractionDigits:2})} Ton CO2e</b> (Energía: {moduloESG.co2Energia.toFixed(1)}t | Gas: {moduloESG.co2Gas.toFixed(1)}t | Agua: {moduloESG.co2Agua.toFixed(1)}t).
               </p>
             </div>
           </div>
+          
           <Button 
             onClick={handleDescargarESG} 
             disabled={!hasFilteredData || isDownloading} 
-            className="bg-emerald-600 hover:bg-emerald-700 text-white flex-shrink-0 w-full sm:w-auto shadow-sm"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white w-full md:w-auto shadow-sm flex-shrink-0 h-10"
           >
-            {isDownloading ? 'Procesando Documento...' : 'Descargar Reporte ESG'}
+            {isDownloading ? 'Generando...' : 'Descargar Reporte ESG'}
           </Button>
         </CardContent>
       </Card>
