@@ -268,7 +268,7 @@ Control Geoespacial
 
           <div className="pt-8 border-t border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4">
             <p className="text-sm text-gray-400">
-              © {new Date().getFullYear()} Vectia S.A.S. Todos los derechos reservados.
+              © 2026 Vectia S.A.S. Todos los derechos reservados.
             </p>
             <div className="flex gap-6">
               <a href="#" className="text-sm text-gray-400 hover:text-gray-900">Política de Privacidad</a>

@@ -23,9 +23,11 @@ export default function DashboardLayout({
   ];
 
   return (
-    <div className="flex flex-col min-h-[calc(100dvh-68px)] w-full">
+    // CAMBIO 1: Reemplazado min-h por h para forzar la altura exacta de la pantalla
+    <div className="flex flex-col h-[calc(100dvh-68px)] w-full">
       {/* Mobile header */}
-      <div className="lg:hidden flex items-center justify-between bg-white border-b border-gray-200 p-4">
+      {/* CAMBIO 2: Agregado shrink-0 para evitar que el header se aplaste en móviles */}
+      <div className="lg:hidden flex items-center justify-between bg-white border-b border-gray-200 p-4 shrink-0">
         <div className="flex items-center">
           <span className="font-medium">Vectia Dashboard</span>
         </div>
