@@ -61,16 +61,34 @@ export default function AnalyticsPage() {
   }, [filtroSede]);
 
   // ==========================================
-  // MOTOR DE CÁLCULO Y FILTRADO
+  // MOTOR DE CÁLCULO Y FILTRADO (Con Resolución de Entidades)
   // ==========================================
   const { kpis, chartData, sedesList, medidoresList, sedesData, alertas, moduloESG, hasData } = useMemo(() => {
     const facturasCrud = responseData?.data || [];
     
+    // ---------------------------------------------------------
+    // OPCIÓN 1: RESOLUCIÓN DE ENTIDADES POR NÚMERO DE CLIENTE
+    // ---------------------------------------------------------
+    const cuentaToDireccion: Record<string, string> = {};
+    facturasCrud.forEach((f: any) => {
+      if (f.numero_cliente && !cuentaToDireccion[f.numero_cliente]) {
+         cuentaToDireccion[f.numero_cliente] = f.ciudad ? `${f.direccion_sede || 'Sede'}, ${f.ciudad}` : (f.direccion_sede || 'Sede');
+      }
+    });
+
+    const getDireccionUnificada = (f: any) => {
+        if (f.numero_cliente && cuentaToDireccion[f.numero_cliente]) {
+            return cuentaToDireccion[f.numero_cliente];
+        }
+        return f.ciudad ? `${f.direccion_sede || 'Sede'}, ${f.ciudad}` : (f.direccion_sede || 'Sede');
+    };
+    // ---------------------------------------------------------
+
     const todasLasSedes = new Set<string>();
     const todosLosMedidores = new Set<string>();
 
     facturasCrud.forEach((f: any) => {
-      const direccionCompleta = f.ciudad ? `${f.direccion_sede || 'Sede'}, ${f.ciudad}` : (f.direccion_sede || 'Sede');
+      const direccionCompleta = getDireccionUnificada(f);
       todasLasSedes.add(direccionCompleta);
       
       if (filtroSede === 'todas' || direccionCompleta === filtroSede) {
@@ -83,11 +101,11 @@ export default function AnalyticsPage() {
     });
 
     const facturasFiltradas = facturasCrud.filter((f: any) => {
-      const direccionCompleta = f.ciudad ? `${f.direccion_sede || 'Sede'}, ${f.ciudad}` : (f.direccion_sede || 'Sede');
+      const direccionCompleta = getDireccionUnificada(f);
       if (filtroSede !== 'todas' && direccionCompleta !== filtroSede) return false;
       
       if (filtroTiempo !== 'historico') {
-        const fDate = new Date(f.periodo_inicio || f.created_at);
+        const fDate = new Date(f.periodo_fin || f.created_at);
         const now = new Date();
         const diffDays = Math.ceil(Math.abs(now.getTime() - fDate.getTime()) / (1000 * 60 * 60 * 24));
         
@@ -120,7 +138,7 @@ export default function AnalyticsPage() {
     let mensajeFuga = "";
 
     facturasFiltradas.forEach((factura: any) => {
-      const direccionCompleta = factura.ciudad ? `${factura.direccion_sede || 'Sede'}, ${factura.ciudad}` : (factura.direccion_sede || 'Sede');
+      const direccionCompleta = getDireccionUnificada(factura);
       sedesUnicas.add(direccionCompleta);
 
       let consumoTotalFactura = 0;
@@ -145,7 +163,7 @@ export default function AnalyticsPage() {
       sedesFinanciero[direccionCompleta] += gastoPonderado;
 
       const servicio = factura.tipo_servicio || 'energia';
-      const mes = factura.periodo_inicio ? factura.periodo_inicio.substring(0, 7) : 'Desconocido';
+      const mes = factura.periodo_fin ? factura.periodo_fin.substring(0, 7) : 'Desconocido';
 
       let co2Factura = 0;
 
