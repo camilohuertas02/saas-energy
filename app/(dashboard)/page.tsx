@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 
 import uploadImg from './img/upload-3.png';
-import dashboardImg from './img/dashboard-4.png';
+import dashboardImg from './img/dashboard-5.png';
 
 export default function HomePage() {
   return (
