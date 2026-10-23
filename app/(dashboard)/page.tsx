@@ -122,7 +122,7 @@ export default function HomePage() {
               </div>
               <h2 className="text-3xl font-bold text-slate-900 mb-6">Olvídate de la digitación manual.</h2>
               <p className="text-lg text-slate-600 mb-6 leading-relaxed">
-                Sube tus recibos crudos en formato PDF. Nuestro motor impulsado por modelos fundacionales (LLMs) lee las tablas, unifica proveedores distintos y extrae los datos clave con precisión, ignorando el ruido publicitario del documento.
+                Sube tus recibos crudos en formato PDF. Nuestro motor impulsado por modelos fundacionales lee las tablas, unifica proveedores distintos y extrae los datos clave con precisión, ignorando el ruido publicitario del documento.
               </p>
               <ul className="space-y-4">
                 <li className="flex items-center text-slate-700 font-medium"><ChevronRight className="h-5 w-5 text-blue-600 mr-2"/> Extracción de histórico de consumo</li>
