@@ -62,7 +62,7 @@ export default function ContactPage() {
 
             <div className="mt-12 pt-8 border-t border-slate-800">
               <p className="text-sm text-slate-400">¿Dudas rápidas? Escríbenos a:</p>
-              <p className="text-base font-medium mt-1">contacto@vectia.com</p>
+              <p className="text-base font-medium mt-1">ventas@vectia.com.co</p>
             </div>
           </div>
 
@@ -125,9 +125,10 @@ export default function ContactPage() {
                         <select 
                           id="locations" 
                           required 
+                          defaultValue=""
                           className="flex h-12 w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm pl-10 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent text-slate-700"
                         >
-                          <option value="" disabled selected>Selecciona una opción</option>
+                          <option value="" disabled>Selecciona una opción</option>
                           <option value="1-10">1 a 10 sedes</option>
                           <option value="11-50">11 a 50 sedes</option>
                           <option value="50+">Más de 50 sedes</option>
