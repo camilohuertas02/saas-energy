@@ -757,7 +757,7 @@ export default function AnalyticsPage() {
 
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Top 5 Sedes (Mayor Gasto)</CardTitle>
+              <CardTitle className="text-lg">Las 5 sedes de mayor gasto total</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
