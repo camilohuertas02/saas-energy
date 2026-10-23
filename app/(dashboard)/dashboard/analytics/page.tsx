@@ -347,7 +347,7 @@ export default function AnalyticsPage() {
 
       doc.setFontSize(14);
       doc.setTextColor(17, 24, 39);
-      doc.text("Auditoria y Alertas Regulatorias", 14, finalY);
+      doc.text("Analisis y Alertas Regulatorias", 14, finalY);
       finalY += 8;
 
       const bodyAlertas = [];
@@ -376,6 +376,7 @@ export default function AnalyticsPage() {
         theme: 'striped',
         headStyles: { fillColor: [220, 38, 38] as [number, number, number] }, 
       });
+
 
       doc.setFontSize(9);
       doc.setTextColor(150);
@@ -453,6 +454,13 @@ export default function AnalyticsPage() {
         theme: 'grid',
         headStyles: { fillColor: greenLight },
       });
+
+      doc.setFontSize(8);
+      doc.setTextColor(120);
+      const disclaimer = "METODOLOGIA Y FACTORES DE EMISION:\nCalculos alineados con los estandares internacionales del Protocolo de Gases de Efecto Invernadero (GHG Protocol).\n- Energia Electrica (Alcance 2): Factor de emision marginal del Sistema Interconectado Nacional (SIN) publicado oficialmente por la UPME (Unidad de Planeacion Minero Energetica de Colombia).\n- Gas Natural y Agua (Alcances 1 y 3): Calculos fundamentados en los promedios estandar provistos por la Agencia de Proteccion Ambiental (EPA) aplicados a los volumenes extraidos de la facturacion oficial del cliente.\n*Documento autogenerado para fines de auditoria y reporteria por Vectia IA.";
+      
+      doc.text(disclaimer, 14, 255, { maxWidth: 180 });
+
 
       doc.save(`Vectia_ESG_${new Date().toISOString().split('T')[0]}.pdf`);
 
