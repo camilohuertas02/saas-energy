@@ -15,12 +15,28 @@ export default function ContactPage() {
     e.preventDefault();
     setIsSubmitting(true);
     
-    // Aquí conectarás con tu API de Resend o similar (ej. fetch('/api/contact', {...}))
-    // Simulamos un pequeño delay de envío por ahora
-    setTimeout(() => {
+    const formData = new FormData(e.currentTarget);
+    const data = Object.fromEntries(formData.entries());
+
+    try {
+      const response = await fetch('/api/contact', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (response.ok) {
+        setIsSuccess(true);
+      } else {
+        console.error('Error al enviar la solicitud');
+      }
+    } catch (error) {
+      console.error('Error de red:', error);
+    } finally {
       setIsSubmitting(false);
-      setIsSuccess(true);
-    }, 1500);
+    }
   };
 
   return (
@@ -97,7 +113,7 @@ export default function ContactPage() {
                     <Label htmlFor="name" className="text-slate-700">Nombre Completo</Label>
                     <div className="relative">
                       <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                      <Input id="name" required placeholder="Ej. Carlos Mendoza" className="pl-10 h-12 bg-slate-50 border-slate-200" />
+                      <Input id="name" name="name" required placeholder="Ej. Carlos Mendoza" className="pl-10 h-12 bg-slate-50 border-slate-200" />
                     </div>
                   </div>
 
@@ -105,7 +121,7 @@ export default function ContactPage() {
                     <Label htmlFor="email" className="text-slate-700">Correo Corporativo</Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                      <Input id="email" type="email" required placeholder="carlos@tuempresa.com" className="pl-10 h-12 bg-slate-50 border-slate-200" />
+                      <Input id="email" name="email" type="email" required placeholder="carlos@tuempresa.com" className="pl-10 h-12 bg-slate-50 border-slate-200" />
                     </div>
                   </div>
 
@@ -114,7 +130,7 @@ export default function ContactPage() {
                       <Label htmlFor="company" className="text-slate-700">Empresa</Label>
                       <div className="relative">
                         <Building2 className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                        <Input id="company" required placeholder="Nombre de la empresa" className="pl-10 h-12 bg-slate-50 border-slate-200" />
+                        <Input id="company" name="company" required placeholder="Nombre de la empresa" className="pl-10 h-12 bg-slate-50 border-slate-200" />
                       </div>
                     </div>
 
@@ -124,6 +140,7 @@ export default function ContactPage() {
                         <MapPin className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                         <select 
                           id="locations" 
+                          name="locations"
                           required 
                           defaultValue=""
                           className="flex h-12 w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm pl-10 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent text-slate-700"
