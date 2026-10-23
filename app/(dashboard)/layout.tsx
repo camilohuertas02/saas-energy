@@ -37,7 +37,7 @@ function UserMenu() {
           <Link href="/sign-in">Ingresar</Link>
         </Button>
         <Button asChild className="rounded-full bg-blue-600 hover:bg-blue-700 text-white h-10 px-6 font-medium shadow-sm">
-          <Link href="#">Agendar una demo</Link>
+          <Link href="/contact/">Agendar una demo</Link>
         </Button>
       </div>
     );
