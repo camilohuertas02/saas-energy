@@ -19,7 +19,7 @@ export async function POST(req: Request) {
     const data = await resend.emails.send({
       from: 'Plataforma Vectia <notificaciones@vectia.com.co>',
       to: ['ventas@vectia.com.co'],
-      reply_to: email, // Permite que le respondas al cliente desde Zoho dándole a "Responder"
+      replyTo: email, // Permite que le respondas al cliente desde Zoho dándole a "Responder"
       subject: `🔥 Nuevo Lead B2B: ${company} - ${locations} sedes`,
       html: `
         <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
